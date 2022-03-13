@@ -28,6 +28,7 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -204,6 +205,23 @@ public class DeckAdapter<T extends AbstractDeckTreeNode<T>> extends RecyclerView
         // Update views for this node
         AbstractDeckTreeNode<?> node = mCurrentDeckList.get(position);
         // Set the expander icon and padding according to whether or not there are any subdecks
+        int depth = node.getDepth();
+        if(depth%5 == 0){
+            holder.deckLayout.setBackgroundColor(Color.parseColor("#e7eecc"));
+        }
+        else if(depth%5 == 1){
+            holder.deckLayout.setBackgroundColor(Color.parseColor("#f0cf29"));
+        }
+        else if(depth%5 == 2){
+            holder.deckLayout.setBackgroundColor(Color.parseColor("#ec29f0"));
+        }
+        else if(depth%5 == 3){
+            holder.deckLayout.setBackgroundColor(Color.parseColor("#2933f0"));
+        }
+        else if(depth%5 == 4){
+            holder.deckLayout.setBackgroundColor(Color.parseColor("#29f0f0"));
+        }
+
         RelativeLayout deckLayout = holder.deckLayout;
         int rightPadding = (int) deckLayout.getResources().getDimension(R.dimen.deck_picker_right_padding);
         if (mHasSubdecks) {
@@ -226,20 +244,20 @@ public class DeckAdapter<T extends AbstractDeckTreeNode<T>> extends RecyclerView
             holder.deckExpander.setClickable(false);
             holder.deckLayout.setOnClickListener(mDeckClickListener);
         }
-        holder.deckLayout.setBackgroundResource(mRowCurrentDrawable);
+//        holder.deckLayout.setBackgroundResource(mRowCurrentDrawable);
         // Set background colour. The current deck has its own color
-        if (isCurrentlySelectedDeck(node)) {
-            holder.deckLayout.setBackgroundResource(mRowCurrentDrawable);
-            if (mPartiallyTransparentForBackground) {
-                setBackgroundAlpha(holder.deckLayout, SELECTED_DECK_ALPHA_AGAINST_BACKGROUND);
-            }
-        } else {
-            // Ripple effect
-            int[] attrs = new int[] {android.R.attr.selectableItemBackground};
-            TypedArray ta = holder.deckLayout.getContext().obtainStyledAttributes(attrs);
-            holder.deckLayout.setBackgroundResource(ta.getResourceId(0, 0));
-            ta.recycle();
-        }
+//        if (isCurrentlySelectedDeck(node)) {
+//            holder.deckLayout.setBackgroundResource(mRowCurrentDrawable);
+//            if (mPartiallyTransparentForBackground) {
+//                setBackgroundAlpha(holder.deckLayout, SELECTED_DECK_ALPHA_AGAINST_BACKGROUND);
+//            }
+//        } else {
+//            // Ripple effect
+//            int[] attrs = new int[] {android.R.attr.selectableItemBackground};
+//            TypedArray ta = holder.deckLayout.getContext().obtainStyledAttributes(attrs);
+//            holder.deckLayout.setBackgroundResource(ta.getResourceId(0, 0));
+//            ta.recycle();
+//        }
         // Set deck name and colour. Filtered decks have their own colour
         holder.deckName.setText(node.getLastDeckNameComponent());
         if (mCol.getDecks().isDyn(node.getDid())) {

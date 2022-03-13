@@ -256,7 +256,7 @@ public class DeckPicker extends NavigationDrawerActivity implements
     private CustomStudyDialogFactory mCustomStudyDialogFactory;
     private DeckPickerContextMenu.Factory mContextMenuFactory;
 
-    private Long expandedDeckKey = null;
+    private Long mExpandedDeckKey = null;
     // ----------------------------------------------------------------------------
     // LISTENERS
     // ----------------------------------------------------------------------------

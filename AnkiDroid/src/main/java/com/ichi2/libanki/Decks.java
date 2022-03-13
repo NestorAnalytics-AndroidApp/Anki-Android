@@ -164,7 +164,7 @@ public class Decks extends DeckManager {
 
     private final Collection mCol;
     private HashMap<Long, Deck> mDecks;
-    private Deck expanded;
+    private Deck mExpanded;
     private HashMap<Long, DeckConfig> mDconf;
     // Never access mNameMap directly. Uses byName
     private NameMap mNameMap;
