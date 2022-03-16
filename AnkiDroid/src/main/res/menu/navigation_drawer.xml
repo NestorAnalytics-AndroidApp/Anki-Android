@@ -34,4 +34,9 @@
             android:icon="@drawable/ic_support_ankidroid"
             android:title="@string/help_title_support_ankidroid"/>
     </group>
+    <group>
+        <item android:id="@+id/profile_add"
+            android:title="@string/add_profile"
+            android:icon="@drawable/ic_add_white" />
+    </group>
 </menu>

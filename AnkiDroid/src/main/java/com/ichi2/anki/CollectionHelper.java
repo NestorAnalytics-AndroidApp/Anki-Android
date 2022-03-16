@@ -38,6 +38,11 @@ import net.ankiweb.rsdroid.BackendException;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 
 import androidx.annotation.VisibleForTesting;
 import timber.log.Timber;
@@ -67,6 +72,8 @@ public class CollectionHelper {
      * The path also defines the collection that the AnkiDroid API accesses
      */
     public static final String PREF_DECK_PATH = "deckPath";
+    public static final String CURRENT_PROFILE_NAME = "profile_name";
+    public static final String DEFAULT_PROFILE_NAME = "Default";
 
     /**
      * Prevents {@link com.ichi2.async.CollectionLoader} from spuriously re-opening the {@link Collection}.
@@ -74,6 +81,7 @@ public class CollectionHelper {
      * <p>Accessed only from synchronized methods.
      */
     private boolean mCollectionLocked;
+
 
     @Nullable
     public static Long getCollectionSize(Context context) {
@@ -86,14 +94,19 @@ public class CollectionHelper {
         }
     }
 
+
     public synchronized void lockCollection() {
         Timber.i("Locked Collection - Collection Loading should fail");
         mCollectionLocked = true;
     }
+
+
     public synchronized void unlockCollection() {
         Timber.i("Unlocked Collection");
         mCollectionLocked = false;
     }
+
+
     public synchronized boolean isCollectionLocked() {
         return mCollectionLocked;
     }
@@ -108,6 +121,7 @@ public class CollectionHelper {
         public static CollectionHelper INSTANCE = new CollectionHelper();
     }
 
+
     /**
      * @return Singleton instance of the helper class
      */
@@ -118,6 +132,7 @@ public class CollectionHelper {
 
     /**
      * Get the single instance of the {@link Collection}, creating it if necessary  (lazy initialization).
+     *
      * @param context context which can be used to get the setting for the path to the Collection
      * @return instance of the Collection
      */
@@ -127,6 +142,7 @@ public class CollectionHelper {
         }
         return getCol(context, new SystemTime());
     }
+
 
     @VisibleForTesting
     public synchronized Collection getCol(Context context, @NonNull Time time) {
@@ -149,7 +165,10 @@ public class CollectionHelper {
         return mCollection;
     }
 
-    /** Collection time if possible, otherwise real time.*/
+
+    /**
+     * Collection time if possible, otherwise real time.
+     */
     public synchronized Time getTimeSafe(Context context) {
         try {
             return getCol(context).getTime();
@@ -159,9 +178,11 @@ public class CollectionHelper {
         }
     }
 
+
     /**
      * Call getCol(context) inside try / catch statement.
      * Send exception report and return null if there was an exception.
+     *
      * @param context
      * @return
      */
@@ -178,8 +199,10 @@ public class CollectionHelper {
         }
     }
 
+
     /**
      * Close the {@link Collection}, optionally saving
+     *
      * @param save whether or not save before closing
      */
     public synchronized void closeCollection(boolean save, String reason) {
@@ -189,6 +212,7 @@ public class CollectionHelper {
         }
     }
 
+
     /**
      * @return Whether or not {@link Collection} and its child database are open.
      */
@@ -197,19 +221,20 @@ public class CollectionHelper {
                 mCollection.getDb().getDatabase() != null && mCollection.getDb().getDatabase().isOpen();
     }
 
+
     /**
      * Create the AnkiDroid directory if it doesn't exist and add a .nomedia file to it if needed.
-     *
+     * <p>
      * The AnkiDroid directory is a user preference stored under {@link #PREF_DECK_PATH}, and a sensible
      * default is chosen if the preference hasn't been created yet (i.e., on the first run).
-     *
+     * <p>
      * The presence of a .nomedia file indicates to media scanners that the directory must be
      * excluded from their search. We need to include this to avoid media scanners including
      * media files from the collection.media directory. The .nomedia file works at the directory
      * level, so placing it in the AnkiDroid directory will ensure media scanners will also exclude
      * the collection.media sub-directory.
      *
-     * @param path  Directory to initialize
+     * @param path Directory to initialize
      * @throws StorageAccessException If no write access to directory
      */
     public static synchronized void initializeAnkiDroidDirectory(String path) throws StorageAccessException {
@@ -232,10 +257,12 @@ public class CollectionHelper {
         }
     }
 
+
     /**
      * Try to access the current AnkiDroid directory
-     * @return whether or not dir is accessible
+     *
      * @param context to get directory with
+     * @return whether or not dir is accessible
      */
     public static boolean isCurrentAnkiDroidDirAccessible(Context context) {
         try {
@@ -247,9 +274,11 @@ public class CollectionHelper {
         }
     }
 
+
     /**
      * Checks if current directory being used by AnkiDroid to store user data is a Legacy Storage Directory.
      * This directory is stored under {@link #PREF_DECK_PATH}
+     *
      * @return <code>true</code> if AnkiDroid is storing user data in a Legacy Storage Directory.
      */
     public static boolean isLegacyStorage(Context context) {
@@ -307,9 +336,9 @@ public class CollectionHelper {
      * (AnkiDroid defaults to External before the Migration To Scoped Storage).
      * <p>
      * TODO: If External Storage isn't emulated, allow users to choose between External & Internal App-Specific Storage
-     *  instead of defaulting to External App-Specific Storage. This should be done since using either one may be more
-     *  useful for them. If External Storage is emulated, there is no use in providing the option since Internal
-     *  Storage can not provide more storage space than External Storage if External Storage is emulated.
+     * instead of defaulting to External App-Specific Storage. This should be done since using either one may be more
+     * useful for them. If External Storage is emulated, there is no use in providing the option since Internal
+     * Storage can not provide more storage space than External Storage if External Storage is emulated.
      * <p><br>
      * See the detailed explanation on storage locations & their classification below for more details.
      * <p><br>
@@ -362,7 +391,36 @@ public class CollectionHelper {
      */
     @SuppressWarnings("deprecation")
     public static String getLegacyAnkiDroidDirectory() {
-        return new File(Environment.getExternalStorageDirectory(), "AnkiDroid").getAbsolutePath();
+        return new File(Environment.getExternalStorageDirectory(), "AnkiDroid/" + DEFAULT_PROFILE_NAME).getAbsolutePath();
+    }
+
+
+    @SuppressWarnings("deprecation")
+    public static List<String> getAnkiProfiles() {
+        File ankiRoot = new File(Environment.getExternalStorageDirectory(), "AnkiDroid");
+        ArrayList<String> profile = new ArrayList<>();
+        if (ankiRoot.exists() && ankiRoot.canRead()) {
+            File[] files = ankiRoot.listFiles();
+            if (files != null) {
+                Arrays.sort(files, (o1, o2) -> (int) (o2.lastModified()-o1.lastModified()));
+                Arrays.stream(files).forEach(file -> {
+                    if (file.isDirectory()) {
+                        profile.add(file.getName());
+                    }
+                });
+            }
+        }
+        return profile;
+    }
+
+
+    @SuppressWarnings("deprecation")
+    public static String createCustomProfileDirectory(String profile) throws StorageAccessException {
+        if (profile.isEmpty()) {
+            throw new StorageAccessException("Invalid profile name");
+        } else {
+            return new File(Environment.getExternalStorageDirectory(), "AnkiDroid/" + profile).getAbsolutePath();
+        }
     }
 
 
@@ -399,11 +457,12 @@ public class CollectionHelper {
         return context.getFilesDir().getAbsolutePath();
     }
 
+
     /**
-     *
      * @return the path to the actual {@link Collection} file
      */
-    public static @NonNull String getCollectionPath(Context context) {
+    public static @NonNull
+    String getCollectionPath(Context context) {
         return new File(getCurrentAnkiDroidDirectory(context), COLLECTION_FILENAME).getAbsolutePath();
     }
 
@@ -424,14 +483,17 @@ public class CollectionHelper {
                 () -> getDefaultAnkiDroidDirectory(context));
     }
 
+
     /**
      * Get parent directory given the {@link Collection} path.
+     *
      * @param path path to AnkiDroid collection
      * @return path to AnkiDroid folder
      */
     private static String getParentDirectory(String path) {
         return new File(path).getParentFile().getAbsolutePath();
     }
+
 
     /**
      * This currently stores either:
@@ -450,11 +512,13 @@ public class CollectionHelper {
         @Nullable
         private final Long mFreeSpace;
 
+
         private CollectionIntegrityStorageCheck(long requiredSpace, long freeSpace) {
             this.mFreeSpace = freeSpace;
             this.mRequiredSpace = requiredSpace;
             this.mErrorMessage = null;
         }
+
 
         private CollectionIntegrityStorageCheck(@NonNull String errorMessage) {
             this.mRequiredSpace = null;
@@ -462,14 +526,17 @@ public class CollectionHelper {
             this.mErrorMessage = errorMessage;
         }
 
+
         private static CollectionIntegrityStorageCheck fromError(String errorMessage) {
             return new CollectionIntegrityStorageCheck(errorMessage);
         }
+
 
         private static String defaultRequiredFreeSpace(Context context) {
             long oneHundredFiftyMB = 150 * 1000 * 1000; //tested, 1024 displays 157MB. 1000 displays 150
             return Formatter.formatShortFileSize(context, oneHundredFiftyMB);
         }
+
 
         public static CollectionIntegrityStorageCheck createInstance(Context context) {
 
@@ -490,16 +557,18 @@ public class CollectionHelper {
 
             if (freeSpace == -1) {
                 Timber.w("Error obtaining free space for '%s'", collectionFile.getPath());
-                String readableFileSize  = Formatter.formatFileSize(context, requiredSpaceInBytes);
+                String readableFileSize = Formatter.formatFileSize(context, requiredSpaceInBytes);
                 return fromError(context.getResources().getString(R.string.integrity_check_insufficient_space, readableFileSize));
             }
 
             return new CollectionIntegrityStorageCheck(requiredSpaceInBytes, freeSpace);
         }
 
+
         public boolean shouldWarnOnIntegrityCheck() {
             return this.mErrorMessage != null || fileSystemDoesNotHaveSpaceForBackup();
         }
+
 
         private boolean fileSystemDoesNotHaveSpaceForBackup() {
             //only to be called when mErrorMessage == null
@@ -534,15 +603,18 @@ public class CollectionHelper {
         }
     }
 
-    /** Fetches additional collection data not required for
+
+    /**
+     * Fetches additional collection data not required for
      * application startup
-     *
+     * <p>
      * Allows mandatory startup procedures to return early, speeding up startup. Less important tasks are offloaded here
      * No-op if data is already fetched
      */
     public static void loadCollectionComplete(Collection col) {
         col.getModels();
     }
+
 
     public static DatabaseVersion isFutureAnkiDroidVersion(Context context) throws UnknownDatabaseVersionException {
         int databaseVersion = getDatabaseVersion(context);
@@ -568,12 +640,14 @@ public class CollectionHelper {
         }
     }
 
+
     public enum DatabaseVersion {
         USABLE,
         FUTURE_DOWNGRADABLE,
         FUTURE_NOT_DOWNGRADABLE,
         UNKNOWN
     }
+
 
     @VisibleForTesting(otherwise = VisibleForTesting.NONE)
     public void setColForTests(Collection col) {

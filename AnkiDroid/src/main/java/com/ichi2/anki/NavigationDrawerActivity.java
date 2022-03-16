@@ -25,39 +25,44 @@ import android.content.res.Configuration;
 import android.graphics.drawable.Icon;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-
-import com.drakeet.drawer.FullDraggableContainer;
-import com.google.android.material.navigation.NavigationView;
-
-import androidx.annotation.LayoutRes;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
-import androidx.core.app.TaskStackBuilder;
-import androidx.core.content.ContextCompat;
-import androidx.core.view.GravityCompat;
-import androidx.appcompat.app.ActionBarDrawerToggle;
-import androidx.appcompat.widget.SwitchCompat;
-import androidx.appcompat.widget.Toolbar;
-
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.EditText;
+import android.widget.Spinner;
 
+import com.afollestad.materialdialogs.MaterialDialog;
+import com.drakeet.drawer.FullDraggableContainer;
+import com.google.android.material.navigation.NavigationView;
 import com.ichi2.anki.dialogs.HelpDialog;
+import com.ichi2.anki.exception.StorageAccessException;
 import com.ichi2.themes.Themes;
 import com.ichi2.utils.HandlerUtils;
 
 import java.util.Arrays;
+import java.util.List;
 
+import androidx.annotation.LayoutRes;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.ActionBarDrawerToggle;
+import androidx.appcompat.widget.SwitchCompat;
+import androidx.appcompat.widget.Toolbar;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import androidx.core.app.TaskStackBuilder;
+import androidx.core.content.ContextCompat;
+import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.ClosableDrawerLayout;
-
 import androidx.drawerlayout.widget.DrawerLayout;
 import timber.log.Timber;
-import static com.ichi2.anim.ActivityTransitionAnimation.Direction.*;
+
+import static com.ichi2.anim.ActivityTransitionAnimation.Direction.END;
+import static com.ichi2.anim.ActivityTransitionAnimation.Direction.FADE;
+import static com.ichi2.anim.ActivityTransitionAnimation.Direction.START;
 
 
 public abstract class NavigationDrawerActivity extends AnkiActivity implements NavigationView.OnNavigationItemSelectedListener {
@@ -86,6 +91,7 @@ public abstract class NavigationDrawerActivity extends AnkiActivity implements N
      */
     private Runnable mPendingRunnable;
 
+
     @Override
     public void setContentView(@LayoutRes int layoutResID) {
         SharedPreferences preferences = AnkiDroidApp.getSharedPrefs(getBaseContext());
@@ -106,16 +112,23 @@ public abstract class NavigationDrawerActivity extends AnkiActivity implements N
         }
 
         setContentView(closableDrawerLayout);
+
     }
 
-    private @LayoutRes int getNavigationDrawerLayout() {
+
+    private @LayoutRes
+    int getNavigationDrawerLayout() {
         return fitsSystemWindows() ? R.layout.navigation_drawer_layout : R.layout.navigation_drawer_layout_fullscreen;
     }
 
-    /** Whether android:fitsSystemWindows="true" should be applied to the navigation drawer */
+
+    /**
+     * Whether android:fitsSystemWindows="true" should be applied to the navigation drawer
+     */
     protected boolean fitsSystemWindows() {
         return true;
     }
+
 
     // Navigation drawer initialisation
     protected void initNavigationDrawer(View mainView) {
@@ -179,6 +192,33 @@ public abstract class NavigationDrawerActivity extends AnkiActivity implements N
         mDrawerLayout.addDrawerListener(mDrawerToggle);
 
         enablePostShortcut(this);
+        initProfileMenuOptions();
+    }
+
+
+    private void initProfileMenuOptions() {
+        List<String> profiles = CollectionHelper.getAnkiProfiles();
+        final boolean[] isSpinnerTouched = {false};
+        String currentProfile = getPreferences().getString(CollectionHelper.CURRENT_PROFILE_NAME, CollectionHelper.DEFAULT_PROFILE_NAME);
+        Spinner spinner = mNavigationView.getHeaderView(0).findViewById(R.id.spinner_profile);
+        spinner.setAdapter(new ArrayAdapter<>(this, R.layout.profile_spinner_layout, profiles));
+        spinner.setSelection(profiles.indexOf(currentProfile));
+        spinner.setOnTouchListener((v, event) -> {
+            isSpinnerTouched[0] = true;
+            return false;
+        });
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (!isSpinnerTouched[0]) {
+                    return;
+                }
+                switchProfile(profiles.get(position));
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
     }
 
 
@@ -188,7 +228,7 @@ public abstract class NavigationDrawerActivity extends AnkiActivity implements N
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) {
             return;
         }
-        
+
         ShortcutManager shortcutManager = context.getSystemService(ShortcutManager.class);
 
         // Review Cards Shortcut
@@ -277,9 +317,11 @@ public abstract class NavigationDrawerActivity extends AnkiActivity implements N
         }
     }
 
+
     private SharedPreferences getPreferences() {
         return AnkiDroidApp.getSharedPrefs(NavigationDrawerActivity.this);
     }
+
 
     private void applyNightMode(boolean setToNightMode) {
         final SharedPreferences preferences = getPreferences();
@@ -287,6 +329,32 @@ public abstract class NavigationDrawerActivity extends AnkiActivity implements N
         preferences.edit().putBoolean(NIGHT_MODE_PREFERENCE, setToNightMode).apply();
         restartActivityInvalidateBackstack(NavigationDrawerActivity.this);
     }
+
+
+    private void switchProfile(String profile) {
+        try {
+            String path = CollectionHelper.createCustomProfileDirectory(profile);
+            CollectionHelper.initializeAnkiDroidDirectory(path);
+            getPreferences().edit().putString(CollectionHelper.PREF_DECK_PATH, path).apply();
+            getPreferences().edit().putString(CollectionHelper.CURRENT_PROFILE_NAME, profile).apply();
+            restartWithNewDeckPicker();
+        } catch (StorageAccessException e) {
+            String path = CollectionHelper.getDefaultAnkiDroidDirectory(this);
+            getPreferences().edit().putString(CollectionHelper.PREF_DECK_PATH, path).apply();
+        }
+        restartWithNewDeckPicker();
+    }
+
+
+    @SuppressWarnings("deprecation")
+    private void restartWithNewDeckPicker() {
+        // PERF: DB access on foreground thread
+        CollectionHelper.getInstance().closeCollection(true, "Preference Modification: collection path changed");
+        Intent deckPicker = new Intent(this, DeckPicker.class);
+        deckPicker.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+        startActivity(deckPicker);
+    }
+
 
     @Override
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
@@ -302,6 +370,7 @@ public abstract class NavigationDrawerActivity extends AnkiActivity implements N
         return mDrawerToggle;
     }
 
+
     /**
      * This function locks the navigation drawer closed in regards to swipes,
      * but continues to allowed it to be opened via it's indicator button. This
@@ -312,6 +381,7 @@ public abstract class NavigationDrawerActivity extends AnkiActivity implements N
             mDrawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED);
         }
     }
+
 
     /**
      * This function allows swipes to open the navigation drawer. This
@@ -358,6 +428,7 @@ public abstract class NavigationDrawerActivity extends AnkiActivity implements N
         }
     }
 
+
     /**
      * Called, when navigation button of the action bar is pressed.
      * Design pattern: template method. Subclasses can override this to define their own behaviour.
@@ -369,6 +440,7 @@ public abstract class NavigationDrawerActivity extends AnkiActivity implements N
             openDrawer();
         }
     }
+
 
     @Override
     public boolean onNavigationItemSelected(final MenuItem item) {
@@ -415,12 +487,28 @@ public abstract class NavigationDrawerActivity extends AnkiActivity implements N
             } else if (itemId == R.id.support_ankidroid) {
                 Timber.i("Navigating to support AnkiDroid");
                 showDialogFragment(HelpDialog.createInstanceForSupportAnkiDroid(this));
+            } else if (itemId == R.id.profile_add) {
+                View v = getLayoutInflater().inflate(R.layout.add_profile_dialog_layout, null);
+                new MaterialDialog.Builder(this)
+                        .customView(v, false)
+                        .title("Create a new profile")
+                        .positiveText(R.string.dialog_ok)
+                        .negativeText("cancel")
+                        .onPositive((dialog, which) -> {
+                            String newProfile = ((EditText) v.findViewById(R.id.new_profile_et)).getText().toString();
+                            switchProfile(newProfile);
+                        })
+                        .onNegative((dialog, which) -> dialog.dismiss())
+                        .show();
+            } else {
+                switchProfile(item.getTitle().toString());
             }
         };
 
         closeDrawer();
         return true;
     }
+
 
     protected void openCardBrowser() {
         Intent intent = new Intent(NavigationDrawerActivity.this, CardBrowser.class);
@@ -431,11 +519,13 @@ public abstract class NavigationDrawerActivity extends AnkiActivity implements N
         startActivityForResultWithAnimation(intent, REQUEST_BROWSE_CARDS, START);
     }
 
+
     // Override this to specify a specific card id
     @Nullable
     protected Long getCurrentCardId() {
         return null;
     }
+
 
     protected void showBackIcon() {
         if (mDrawerToggle != null) {
@@ -447,6 +537,7 @@ public abstract class NavigationDrawerActivity extends AnkiActivity implements N
         mNavButtonGoesBack = true;
     }
 
+
     protected void restoreDrawerIcon() {
         if (mDrawerToggle != null) {
             getDrawerToggle().setDrawerIndicatorEnabled(true);
@@ -454,9 +545,11 @@ public abstract class NavigationDrawerActivity extends AnkiActivity implements N
         mNavButtonGoesBack = false;
     }
 
+
     public boolean isDrawerOpen() {
         return mDrawerLayout.isDrawerOpen(GravityCompat.START);
     }
+
 
     /**
      * Restart the activity and discard old backstack, creating it new from the hierarchy in the manifest
@@ -484,6 +577,7 @@ public abstract class NavigationDrawerActivity extends AnkiActivity implements N
     private void openDrawer() {
         mDrawerLayout.openDrawer(GravityCompat.START, animationEnabled());
     }
+
 
     private void closeDrawer() {
         mDrawerLayout.closeDrawer(GravityCompat.START, animationEnabled());

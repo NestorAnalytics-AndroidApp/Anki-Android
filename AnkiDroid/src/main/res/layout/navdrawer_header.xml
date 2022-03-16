@@ -1,10 +1,16 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="150dp"
+    android:layout_height="180dp"
     android:orientation="vertical">
     <ImageView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="?attr/navDrawerImage"
         android:scaleType="centerCrop" />
+    <Spinner xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_gravity="bottom"
+        android:layout_width="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:id="@+id/spinner_profile"
+        android:layout_height="wrap_content"/>
 </FrameLayout>
