@@ -119,6 +119,7 @@ import com.ichi2.async.TaskListener;
 import com.ichi2.async.TaskListenerWithContext;
 import com.ichi2.async.TaskManager;
 import com.ichi2.compat.CompatHelper;
+import com.ichi2.libanki.Card;
 import com.ichi2.libanki.Collection;
 import com.ichi2.libanki.Deck;
 import com.ichi2.libanki.Decks;
@@ -144,6 +145,7 @@ import com.ichi2.widget.WidgetStatus;
 import com.ichi2.utils.JSONException;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -291,6 +293,11 @@ public class DeckPicker extends NavigationDrawerActivity implements
                 .negativeText("RESET")
                 .positiveText("CONTINUE")
                 .onNegative((dialog, which) -> {
+                    List<Long> cids =  getCol().getDecks().cids(deckId);
+                    ArrayList<Card> cards = new ArrayList<>();
+                    cids.stream().forEach(id -> {
+                        cards.add(new Card(getCol(),id));
+                    });
 
                 })
                 .onPositive((dialog, which) -> {
